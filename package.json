@@ -1,6 +1,6 @@
 {
   "name": "open-ai-reviewer",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "description": "Open AI powered code reviews",
   "main": "lib/main.js",
   "author": "Jason Roell",
