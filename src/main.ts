@@ -151,13 +151,17 @@ async function createReviewComment(owner: string, repo: string, pull_number: num
     const reviewComments = comments.map(comment => ({
       path: comment.path,
       body: comment.body,
-      line: comment.line
+      line: comment.line,
+      side: "RIGHT", // Side of the diff where the comment is made (LEFT or RIGHT)
     }));
+
     if (reviewComments.length === 0) {
       core.info("No valid comments to post.");
       return;
     }
-    await octokit.pulls.createReview({
+
+    // Create the review
+    await octokit.rest.pulls.createReview({
       owner,
       repo,
       pull_number,
@@ -207,7 +211,7 @@ async function main() {
     const filteredDiff = parsedDiff.filter(file => !excludePatterns.some(pattern => minimatch(file.to ?? "", pattern)));
     const comments = await analyzeCode(filteredDiff, prDetails);
 
-    if (comments.length > 0) {
+    if (comments.length > 0 && comments[0]?.body !== "") {
       await createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
     } else {
       core.info("No comments generated.");
