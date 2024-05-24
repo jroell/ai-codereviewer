@@ -45,9 +45,8 @@ async function getPRDetails(): Promise<PRDetails> {
 // Function to get diff of the PR
 async function getDiff(owner: string, repo: string, pull_number: number): Promise<string | null> {
   try {
-    const response = await octokit.pulls.get({ owner, repo, pull_number, mediaType: { format: "diff" } });
-    // @ts-expect-error - response.data is a string
-    return response.data;
+    const response = await octokit.pulls.get({ owner, repo, pull_number, mediaType: { format: "diff" } }) as any;
+    return response.data as string;
   } catch (error) {
     const err = error as Error;
     core.setFailed(`Error fetching diff: ${err.message}`);
@@ -61,6 +60,7 @@ async function analyzeCode(parsedDiff: File[], prDetails: PRDetails): Promise<Ar
   for (const file of parsedDiff) {
     if (file.to === "/dev/null") continue; // Ignore deleted files
     for (const chunk of file.chunks) {
+      if (!chunk.changes || chunk.changes.length === 0) continue; // Ensure chunk has changes
       const prompt = createPrompt(file, chunk, prDetails);
       const aiResponse = await getAIResponse(prompt);
       if (aiResponse) {
@@ -132,14 +132,27 @@ async function getAIResponse(prompt: string): Promise<Array<{ lineNumber: string
 function createComment(file: File, chunk: Chunk, aiResponses: Array<{ lineNumber: string; reviewComment: string }>): Array<{ body: string; path: string; line: number }> {
   return aiResponses.flatMap(aiResponse => {
     if (!file.to) return [];
-    return { body: aiResponse.reviewComment, path: file.to, line: Number(aiResponse.lineNumber) };
+    const lineNumber = parseInt(aiResponse.lineNumber);
+    if (isNaN(lineNumber)) return [];
+    return { body: aiResponse.reviewComment, path: file.to, line: lineNumber };
   });
 }
 
 // Function to create review comments on GitHub
 async function createReviewComment(owner: string, repo: string, pull_number: number, comments: Array<{ body: string; path: string; line: number }>): Promise<void> {
   try {
-    await octokit.pulls.createReview({ owner, repo, pull_number, comments, event: "COMMENT" });
+    const reviewComments = comments.map(comment => ({
+      path: comment.path,
+      body: comment.body,
+      line: comment.line
+    }));
+    await octokit.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      event: "COMMENT",
+      comments: reviewComments
+    });
   } catch (error) {
     const err = error as Error;
     core.setFailed(`Error creating review comments: ${err.message}`);
