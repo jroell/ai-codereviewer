@@ -148,17 +148,27 @@ function createComment(file: File, chunk: Chunk, aiResponses: Array<{ lineNumber
 // Function to create review comments on GitHub
 async function createReviewComment(owner: string, repo: string, pull_number: number, comments: Array<{ body: string; path: string; line: number }>): Promise<void> {
   try {
-    const reviewComments = comments.map(comment => ({
-      path: comment.path,
-      body: comment.body,
-      line: comment.line,
-      side: "RIGHT", // Ensure to specify the side of the diff
-    })).filter(comment => comment.path && comment.line > 0); // Filter out invalid comments
+    const validComments = comments.filter(comment => {
+      const isValid = comment.path && comment.line > 0;
+      if (!isValid) {
+        core.info(`Invalid comment detected: ${JSON.stringify(comment)}`);
+      }
+      return isValid;
+    });
 
-    if (reviewComments.length === 0) {
+    if (validComments.length === 0) {
       core.info("No valid comments to post.");
       return;
     }
+
+    const reviewComments = validComments.map(comment => ({
+      path: comment.path,
+      body: comment.body,
+      line: comment.line,
+      side: "RIGHT"
+    }));
+
+    core.info(`Posting review comments: ${JSON.stringify(reviewComments)}`);
 
     await octokit.rest.pulls.createReview({
       owner,
@@ -167,11 +177,14 @@ async function createReviewComment(owner: string, repo: string, pull_number: num
       event: "COMMENT",
       comments: reviewComments
     });
+
   } catch (error) {
     const err = error as Error;
     core.setFailed(`Error creating review comments: ${err.message}`);
+    throw err;
   }
 }
+
 
 // Function to get base and head SHA values for a PR
 async function getBaseAndHeadShas(owner: string, repo: string, pull_number: number): Promise<{ baseSha: string; headSha: string }> {
@@ -185,6 +198,7 @@ async function getBaseAndHeadShas(owner: string, repo: string, pull_number: numb
 // Main function
 async function main() {
   try {
+    core.info(`Starting code review...`);
     const prDetails = await getPRDetails();
     let diff: string | null;
     const eventData = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8"));
