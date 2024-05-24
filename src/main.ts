@@ -152,15 +152,14 @@ async function createReviewComment(owner: string, repo: string, pull_number: num
       path: comment.path,
       body: comment.body,
       line: comment.line,
-      side: "RIGHT", // Side of the diff where the comment is made (LEFT or RIGHT)
-    }));
+      side: "RIGHT", // Ensure to specify the side of the diff
+    })).filter(comment => comment.path && comment.line > 0); // Filter out invalid comments
 
     if (reviewComments.length === 0) {
       core.info("No valid comments to post.");
       return;
     }
 
-    // Create the review
     await octokit.rest.pulls.createReview({
       owner,
       repo,
