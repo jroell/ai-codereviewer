@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import * as core from "@actions/core";
-import { Configuration, OpenAIApi } from "openai";
+import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
@@ -11,11 +11,10 @@ const OPENAI_API_MODEL: string = core.getInput("OPENAI_API_MODEL");
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
-const openai = new OpenAIApi(configuration);
 
 interface PRDetails {
   owner: string;
@@ -103,12 +102,17 @@ function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
 - Provide comments and suggestions ONLY if there is something to improve, otherwise return an empty array.
 - Write the comment in GitHub Markdown format.
 - Use the given description only for the overall context and only comment the code.
+- Do not be nitpicky. Provide only useful and valuable suggestions.
 - IMPORTANT: NEVER suggest adding comments to the code.
+- IMPORTANT: If applicable, provide a suggestion. Here is an example of how to create a suggestion:
+\`\`\`suggestion
+				{className: cx("icon", item.icon?.props.className, theme)}
+\`\`\`
 
 Review the following code diff in the file "${
     file.to
   }" and take the pull request title and description into account when writing the response.
-  
+
 Pull request title: ${prDetails.title}
 Pull request description:
 
@@ -135,14 +139,14 @@ async function getAIResponse(prompt: string): Promise<Array<{
   const queryConfig = {
     model: OPENAI_API_MODEL,
     temperature: 0.2,
-    max_tokens: 700,
+    max_tokens: 2000,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
   };
 
   try {
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       ...queryConfig,
       messages: [
         {

@@ -12,10 +12,10 @@
     "lint": "prettier --check ."
   },
   "dependencies": {
-    "@actions/core": "^1.10.0",
-    "@octokit/rest": "^19.0.7",
+    "@actions/core": "latest",
+    "@octokit/rest": "latest",
     "minimatch": "^7.4.2",
-    "openai": "^3.2.1",
+    "openai": "latest",
     "parse-diff": "^0.11.1",
     "ts-node": "^10.9.1"
   },
