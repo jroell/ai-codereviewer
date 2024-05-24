@@ -45,8 +45,15 @@ async function getPRDetails(): Promise<PRDetails> {
 // Function to get diff of the PR
 async function getDiff(owner: string, repo: string, pull_number: number): Promise<string | null> {
   try {
-    const response = await octokit.pulls.get({ owner, repo, pull_number, mediaType: { format: "diff" } }) as any;
-    return response.data as string;
+    const response = await octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number,
+      mediaType: {
+        format: "diff"
+      }
+    });
+    return response.data as unknown as string; // Cast to unknown first, then to string
   } catch (error) {
     const err = error as Error;
     core.setFailed(`Error fetching diff: ${err.message}`);
@@ -86,7 +93,7 @@ function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
 - IMPORTANT: NEVER suggest adding comments to the code.
 - IMPORTANT: If applicable, provide a suggestion. Here is an example of how to create a suggestion:
 \`\`\`suggestion
-				{className: cx("icon", item.icon?.props.className, theme)}
+{className: cx("icon", item.icon?.props.className, theme)}
 \`\`\`
 
 Review the following code diff in the file "${file.to}" and take the pull request title and description into account when writing the response.
@@ -133,7 +140,7 @@ function createComment(file: File, chunk: Chunk, aiResponses: Array<{ lineNumber
   return aiResponses.flatMap(aiResponse => {
     if (!file.to) return [];
     const lineNumber = parseInt(aiResponse.lineNumber);
-    if (isNaN(lineNumber)) return [];
+    if (isNaN(lineNumber) || lineNumber <= 0) return [];
     return { body: aiResponse.reviewComment, path: file.to, line: lineNumber };
   });
 }
@@ -146,6 +153,10 @@ async function createReviewComment(owner: string, repo: string, pull_number: num
       body: comment.body,
       line: comment.line
     }));
+    if (reviewComments.length === 0) {
+      core.info("No valid comments to post.");
+      return;
+    }
     await octokit.pulls.createReview({
       owner,
       repo,
@@ -198,6 +209,8 @@ async function main() {
 
     if (comments.length > 0) {
       await createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
+    } else {
+      core.info("No comments generated.");
     }
   } catch (error) {
     const err = error as Error;
